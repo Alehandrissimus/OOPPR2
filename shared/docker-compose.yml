@@ -1,0 +1,84 @@
+version: '3' # Цільова версія docker
+
+networks:
+  proxy:
+    external: true # Мережа із доступом ззовні
+  internal:
+    external: false # Мережа внутрішнього користування
+
+services:
+
+  # Декілька серверів на одному порті. Допомагає тримати development та production окремо на одному сервері. Конфігурація для версії 2
+  proxy:
+    container_name: proxy
+    image: traefik:latest
+    command:
+      --api
+    # Перенаправимо всі запити з портів 80(HTTP), 443(HTTPS) на контейнер із Traefik
+    ports:
+      - 80:80
+      - 443:443
+    networks:
+      - proxy
+      - internal
+    # Ці директорії будуть доступні програмі, вони прорвуть ізоляцію
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefik/traefik.yml:/traefik.yml"
+      - "./traefik/config:/config"
+      - "./traefik/data:/data"
+    environment:
+      - "CF_API_EMAIL=ТУТ_ПОШТА_ВІД_CLOUDFLARE"
+      - "CF_API_KEY=ТУТ_КЛЮЧ_API_ВІД_CLOUDFLARE"
+    labels:
+      - "traefik.enable=false"
+    restart: always # Якщо впав - піднімайся
+
+  web-d:
+    container_name: webD
+    build:
+      dockerfile: images/nginx/dockerfile
+      context: ./
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dev-site0.rule=Host(`account.pnit.od.ua`)"
+    networks:
+      - internal
+    volumes:
+      - "../development/config:/etc/nginx/conf.d"
+      - "../development:/usr/share/nginx"
+    links:
+      - php-d
+      - mysql
+    restart: always
+
+  php-d:
+    container_name: phpD
+    build:
+      dockerfile: images/php/dockerfile
+      context: ./
+    labels:
+      - "traefik.enable=false"
+    networks:
+      - internal
+    volumes:
+      - "../development:/usr/share/nginx"
+      - "./php/sessions:/var/sessions"
+    restart: always
+
+  #Краще мати БД на окремому сервері, але для малих проєктів підійде
+  mysql:
+    container_name: db
+    image: mysql:8
+    labels:
+      - "traefik.enable=false"
+    networks:
+      - internal
+    volumes:
+      - "./mysql/data:/var/lib/mysql"
+      - "./mysql/config:/etc/mysql/conf.d"
+    environment:
+      MYSQL_ROOT_PASSWORD: ТУТ_ГОЛОВНИЙ_ПАРОЛЬ_БД
+    command:
+      --default-authentication-plugin=mysql_native_password
+    restart: always

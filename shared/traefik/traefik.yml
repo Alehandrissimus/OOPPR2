@@ -1,0 +1,39 @@
+global:
+  checkNewVersion: true
+log:
+  level: error
+entryPoints:
+  basic:
+    address: ":80"
+    http:
+      redirections:
+        entrypoint:
+          to: secure
+          scheme: https
+  secure:
+    address: ":443"
+    http:
+      tls:
+        certResolver: cloudflare
+
+certificatesResolvers:
+  cloudflare:
+    acme:
+      email: support@example.com
+      storage: data/acme.json
+      dnsChallenge:
+        provider: cloudflare
+        delayBeforeCheck: 0
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+secure:
+  middlewares:
+    www:
+      redirectRegex:
+        permanent: true
+        regex: "^https://www.(.*)"
+        replacement: "https://$1"
+file:
+  directory: /config/
+  watch: true
