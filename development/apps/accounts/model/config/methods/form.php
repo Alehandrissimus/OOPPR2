@@ -5,13 +5,13 @@ $methods = [
 			[
 				'name' => 'firstname',
 				'source' => 'p',
-				'pattern' => '',
+				'pattern' => 'name',
 				'required' => true
 			],
 			[
 				'name' => 'secondname',
 				'source' => 'p',
-				'pattern' => '',
+				'pattern' => 'name',
 				'required' => true
 			],
 			[
@@ -23,7 +23,7 @@ $methods = [
 			[
 				'name' => 'phone',
 				'source' => 'p',
-				'pattern' => '',
+				'pattern' => 'phone',
 				'required' => true
 			],
 		]
