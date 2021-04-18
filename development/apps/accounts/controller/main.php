@@ -1,11 +1,4 @@
 <?php
-/**
- * User Controller
- *
- * @author Serhii Shkrabak
- * @global object $CORE
- * @package Controller\Main
- */
 namespace Controller;
 class Main
 {
@@ -16,59 +9,72 @@ class Main
 	public function exec():?array {
 		$result = null;
 		$url = $this->getVar('REQUEST_URI', 'e');
-
 		$path = explode('/', $url);
 
-		if (!isset($path[2]) || strpos($path[1], '.')) { // check for url correctness
-			throw new \Exception("REQUEST_UNKNOWN");
-		}
-
-		$file = ROOT . 'model/config/methods/' . $path[1] . '.php';
-		if (!file_exists($file)) { // check for methods availability
-			throw new \Exception("REQUEST_UNKNOWN");
-		}
-		include $file;
-
-		$file = ROOT . 'model/config/patterns/patterns.php';
-		if (!file_exists($file)) { // check for patterns availability
-			throw new \Exception("REQUEST_UNKNOWN");
-		}	
-		include $file;
-
-		if (isset($methods[$path[2]])) { // check for current method availability
-			$details = $methods[$path[2]];
-			$request = [];
-
-			foreach ($details['params'] as $param) {
-				$var = $this->getVar($param['name'], $param['source']);
-				
-				if ($param['required'] === true) { // checking for required parameter
-
-					if (isset($var)) { // checking parameter availability
-						if (preg_match($patterns["{$param['name']}"], $var) == 0) { // check for pattern match
-							throw new \Exception("REQUEST_INCORRECT, {$param['name']}");
-						}
-
-						//forming correct phone number
-						if ($param['name'] == 'phone') {
-							$var = '+380'.substr($var, strlen($var) - 9);
-						}
-					}
-					else {
-						throw new \Exception("REQUEST_INCOMPLETE, {$param['name']}");
-					}
-
-				}
-				
-				if ($var) {
-					$request[$param['name']] = $var;
-				}
+		if (isset($path[2]) && !strpos($path[1], '.')) { // Disallow directory changing
+			//подключаем форму запроса
+			$file = ROOT . 'model/config/methods/' . $path[1] . '.php';
+			if (file_exists($file)) {
+				include $file;
+			}
+			else {
+				throw new \Exception("REQUEST_UNKNOWN");
+			}
+			
+			$file = ROOT . 'model/config/patterns/patterns.php';//подключаем паттерны для запроса
+			if (file_exists($file)) {
+				include $file;
+			}
+			else {
+				throw new \Exception("REQUEST_UNKNOWN");
 			}
 
-			//forming result
-			if (method_exists($this->model, $path[1] . $path[2])) {
-				$method = [$this->model, $path[1] . $path[2]];
-				$result = $method($request);
+			
+			if (isset($methods[$path[2]])) {
+				$details = $methods[$path[2]];
+				$request = [];
+				
+				foreach ($details['params'] as $param) {
+					$var = $this->getVar($param['name'], $param['source']);
+					
+					if ($param['required'] === true) { //проверка присутствия запроса
+						
+						//проверка обязательного поля
+						if (isset($var)) {
+							
+							//проверка на соответствие шаблону
+							if (preg_match($patterns[$param['pattern']]['regular'], $var) == 0) {
+								throw new \Exception("REQUEST_INCORRECT, {$param['name']}");
+							}
+
+							//throw new \Exception($patterns[$param['pattern']]['function']);
+							//приводим к виду (+380)
+							if (isset($patterns[$param['pattern']]['function'])) {
+								$var = call_user_func($patterns[$param['pattern']]['function'], $var);
+														
+							}
+								
+						}
+						else {
+							throw new \Exception("REQUEST_INCOMPLETE, {$param['name']}");
+						}
+
+					}
+
+					//заполняем массив запроса
+					if ($var) {
+						$request[$param['name']] = $var;
+					}
+				}
+
+				//form submitAmbassador - новая заявка
+				if (method_exists($this->model, $path[1] . $path[2])) {
+					$method = [$this->model, $path[1] . $path[2]];
+					$result = $method($request);
+				}
+				else {
+					throw new \Exception("REQUEST_UNKNOWN");
+				}
 			}
 			else {
 				throw new \Exception("REQUEST_UNKNOWN");
@@ -77,11 +83,11 @@ class Main
 		else {
 			throw new \Exception("REQUEST_UNKNOWN");
 		}
-
 		return $result;
 	}
 
 	public function __construct() {
+		// CORS configuration
 		$origin = $this -> getVar('HTTP_ORIGIN', 'e');
 		$front = $this -> getVar('FRONT', 'e');
 
